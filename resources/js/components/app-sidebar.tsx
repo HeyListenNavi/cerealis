@@ -27,12 +27,12 @@ const mainNavItems: NavItem[] = [
 const footerNavItems: NavItem[] = [
     {
         title: 'Cerealis',
-        href: 'https://github.com/laravel/react-starter-kit',
+        href: 'https://cerealis.cloud',
         icon: ArrowUpRight,
     },
     {
         title: 'ByteByte Studio',
-        href: 'https://laravel.com/docs/starter-kits#react',
+        href: 'https://bytebytestudio.com',
         icon: ArrowUpRight,
     },
 ];
