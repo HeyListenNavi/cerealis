@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
-const SERVER_IP = 's8wc004skw8s0wo8k8cc8ooc.89.116.212.214.sslip.io'; 
+const SERVER_IP = 's8wc004skw8s0wo8k8cc8ooc.89.116.212.214.sslip.io';
 const CONTROL_URL = `ws://${SERVER_IP}/ws/control`;
 
 const statusConfig = {
@@ -16,7 +16,7 @@ const statusConfig = {
         bgClass: 'bg-green-500',
         pulse: false,
     },
-    'Connecting...': { 
+    'Connecting...': {
         textClass: 'text-yellow-500',
         bgClass: 'bg-yellow-500',
         pulse: true,
@@ -89,11 +89,11 @@ export default function ManualControl() {
 
     const handleStart = (command) => sendCommand(command);
     const handleEnd = () => sendCommand('stop');
-    
+
     const currentStatus = statusConfig[connectionStatus] || defaultStatusConfig;
 
     return (
-        <div className="flex flex-col items-center justify-center p-4">
+        <div className="h-full flex flex-col items-center justify-center p-4">
             <div className="mb-8 text-center">
                 <p
                     className={`flex items-center text-lg font-semibold ${currentStatus.textClass}`}
