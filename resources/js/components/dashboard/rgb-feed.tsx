@@ -6,11 +6,11 @@ export default function RGBFeed() {
 
   useEffect(() => {
     // Connect to the RGB WebSocket feed
-    const rgbWs = new WebSocket(`ws://127.0.0.1:8000/ws/rgb_stream`);
+    const rgbWs = new WebSocket(`ws://127.0.0.1:8000/ws/rgb_feed`);
     rgbWs.binaryType = "arraybuffer";
 
     rgbWs.onopen = () => {
-      console.log("✅ Connected to RGB feed");
+      console.log("Connected to RGB feed");
     };
 
     rgbWs.onmessage = (event) => {
@@ -25,7 +25,7 @@ export default function RGBFeed() {
         canvas.width = img.width;
         canvas.height = img.height;
         ctx.drawImage(img, 0, 0);
-        URL.revokeObjectURL(img.src); // Clean up memory
+        URL.revokeObjectURL(img.src); 
       };
 
       img.src = URL.createObjectURL(blob);
@@ -36,11 +36,10 @@ export default function RGBFeed() {
 
     setWs(rgbWs);
 
-    // Cleanup on unmount
     return () => {
       rgbWs.close();
     };
-  }, []); // <-- Empty dependency array to run effect only once
+  }, []);
 
   return (
     <div className="w-full h-full">

@@ -10,10 +10,10 @@ import {
     SidebarMenuButton,
     SidebarMenuItem,
 } from '@/components/ui/sidebar';
-import { dashboard } from '@/routes';
+import { dashboard, map, statistics } from '@/routes';
 import { type NavItem } from '@/types';
 import { Link } from '@inertiajs/react';
-import { ArrowUpRight, LayoutGrid } from 'lucide-react';
+import { ArrowUpRight, ChartArea, LayoutGrid, Map } from 'lucide-react';
 import AppLogo from './app-logo';
 
 const mainNavItems: NavItem[] = [
@@ -21,6 +21,16 @@ const mainNavItems: NavItem[] = [
         title: 'Dashboard',
         href: dashboard(),
         icon: LayoutGrid,
+    },
+    {
+        title: 'Map',
+        href: map(),
+        icon: Map,
+    },
+    {
+        title: 'Statistics',
+        href: statistics(),
+        icon: ChartArea,
     },
 ];
 
