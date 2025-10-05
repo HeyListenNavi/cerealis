@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react'; 
+import React, { useState, useEffect, useMemo } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 
@@ -18,7 +18,7 @@ export default function DroneMap() {
   const defaultPosition = [19.4326, -99.1332]; // Mexico City
 
   useEffect(() => {
-    const ws = new WebSocket("ws://127.0.0.1:8000/ws/drone_info");
+    const ws = new WebSocket("ws://s8wc004skw8s0wo8k8cc8ooc.89.116.212.214.sslip.io/ws/drone_info");
     ws.onopen = () => {
       console.log("Connected to drone info feed.");
       setError(null);
