@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { BatteryFull, Zap, ArrowUp, Satellite, Compass, Home, Navigation } from 'lucide-react';
 
-const SERVER_IP = "127.0.0.1";
-const INFO_URL = `ws://${SERVER_IP}:8000/ws/drone_info`;
+const SERVER_IP = "s8wc004skw8s0wo8k8cc8ooc.89.116.212.214.sslip.io";
+const INFO_URL = `ws://${SERVER_IP}/ws/drone_info`;
 const NEW_GREEN_COLOR = '#658c2d';
 const NEW_GREEN_DARKER = '#516d23';
 const SIMULATION_SPEED_MPS = 20;

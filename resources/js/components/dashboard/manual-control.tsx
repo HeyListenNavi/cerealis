@@ -7,8 +7,8 @@ import {
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
-const SERVER_IP = '127.0.0.1'; 
-const CONTROL_URL = `ws://${SERVER_IP}:8000/ws/control`;
+const SERVER_IP = 's8wc004skw8s0wo8k8cc8ooc.89.116.212.214.sslip.io'; 
+const CONTROL_URL = `ws://${SERVER_IP}/ws/control`;
 
 const statusConfig = {
     'Connected': {
