@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 
 // --- CONFIGURATION ---
-const SERVER_IP = "s8wc004skw8s0wo8k8cc8ooc.89.116.212.214.sslip.io";
-const INFO_URL = `ws://${SERVER_IP}/ws/drone_info`;
-const CONTROL_URL = `ws://${SERVER_IP}/ws/control`;
+const SERVER_IP = "wss://websockets.cerealis.cloud";
+const INFO_URL = `${SERVER_IP}/ws/drone_info`;
+const CONTROL_URL = `${SERVER_IP}/ws/control`;
 const NEW_GREEN_COLOR = '#658c2d';
 const NEW_GREEN_DARKER = '#516d23';
 const SIMULATION_SPEED_MPS = 20; // Drone speed in meters per second

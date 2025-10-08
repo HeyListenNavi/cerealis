@@ -5,7 +5,7 @@ export default function DepthFeed() {
   const [ws, setWs] = useState(null);
 
   useEffect(() => {
-    const rgbWs = new WebSocket(`ws://s8wc004skw8s0wo8k8cc8ooc.89.116.212.214.sslip.io/ws/depth_feed`);
+    const rgbWs = new WebSocket(`wss://websockets.cerealis.cloud/ws/depth_feed`);
     rgbWs.binaryType = "arraybuffer";
 
     rgbWs.onopen = () => {

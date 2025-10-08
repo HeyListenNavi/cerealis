@@ -18,7 +18,7 @@ export default function DroneMap() {
   const defaultPosition = [19.4326, -99.1332]; // Mexico City
 
   useEffect(() => {
-    const ws = new WebSocket("ws://s8wc004skw8s0wo8k8cc8ooc.89.116.212.214.sslip.io/ws/drone_info");
+    const ws = new WebSocket("wss://websockets.cerealis.cloud/ws/drone_info");
     ws.onopen = () => {
       console.log("Connected to drone info feed.");
       setError(null);

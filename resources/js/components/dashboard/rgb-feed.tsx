@@ -6,7 +6,7 @@ export default function RGBFeed() {
 
   useEffect(() => {
     // Connect to the RGB WebSocket feed
-    const rgbWs = new WebSocket(`ws://s8wc004skw8s0wo8k8cc8ooc.89.116.212.214.sslip.io/ws/rgb_feed`);
+    const rgbWs = new WebSocket(`wss://websockets.cerealis.cloud/ws/rgb_feed`);
     rgbWs.binaryType = "arraybuffer";
 
     rgbWs.onopen = () => {
