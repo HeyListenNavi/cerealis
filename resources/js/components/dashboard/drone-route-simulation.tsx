@@ -1,21 +1,23 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { BatteryFull, Zap, ArrowUp, Satellite, Compass, Home, Navigation } from 'lucide-react';
 
+// --- CONFIGURATION ---
 const SERVER_IP = "s8wc004skw8s0wo8k8cc8ooc.89.116.212.214.sslip.io";
 const INFO_URL = `ws://${SERVER_IP}/ws/drone_info`;
+const CONTROL_URL = `ws://${SERVER_IP}/ws/control`;
 const NEW_GREEN_COLOR = '#658c2d';
 const NEW_GREEN_DARKER = '#516d23';
-const SIMULATION_SPEED_MPS = 20;
+const SIMULATION_SPEED_MPS = 20; // Drone speed in meters per second
+// ---------------------
 
+/**
+ * Custom hook to manage WebSocket connection for live drone telemetry.
+ */
 const useDroneTelemetry = (url) => {
     const [droneInfo, setDroneInfo] = useState(null);
-    const [connectionStatus, setConnectionStatus] = useState('Connecting...');
-
     useEffect(() => {
         let ws;
         const connect = () => {
             ws = new WebSocket(url);
-            ws.onopen = () => setConnectionStatus('Connected');
             ws.onmessage = (event) => {
                 try {
                     setDroneInfo(JSON.parse(event.data));
@@ -23,47 +25,20 @@ const useDroneTelemetry = (url) => {
                     console.error("Failed to parse telemetry data:", error);
                 }
             };
-            ws.onclose = () => {
-                setConnectionStatus('Disconnected');
-                setTimeout(connect, 5000);
-            };
-            ws.onerror = (error) => {
-                console.error("Telemetry WebSocket error:", error);
-                setConnectionStatus('Error');
-                ws.close();
-            };
+            ws.onclose = () => setTimeout(connect, 5000);
+            ws.onerror = () => ws.close();
         };
         connect();
         return () => ws?.close();
     }, [url]);
-
-    return { droneInfo, connectionStatus };
+    return { droneInfo };
 };
 
-const StatCard = ({ icon, label, value, children, valueClassName = "text-2xl" }) => (
-    <div className="bg-gray-800/50 p-3 rounded-lg shadow-lg flex flex-col justify-between text-white">
-        <div>
-            <div className="flex items-center text-gray-400 mb-1">
-                {icon}
-                <span className="ml-2 text-xs font-medium uppercase">{label}</span>
-            </div>
-            <div className={`${valueClassName} font-bold truncate`}>{value}</div>
-        </div>
-        {children && <div className="mt-2">{children}</div>}
-    </div>
-);
-
-const BatteryBar = ({ level = 0 }) => {
-    const color = level > 50 ? 'bg-green-500' : level > 20 ? 'bg-yellow-500' : 'bg-red-500';
-    return (
-        <div className="w-full bg-gray-700 rounded-full h-2">
-            <div className={`${color} h-2 rounded-full transition-all duration-500`} style={{ width: `${level}%` }}></div>
-        </div>
-    );
-};
-
+/**
+ * Main dashboard component with map and mission planning.
+ */
 export default function DroneDashboard() {
-    const { droneInfo, connectionStatus } = useDroneTelemetry(INFO_URL);
+    const { droneInfo } = useDroneTelemetry(INFO_URL);
     const [map, setMap] = useState(null);
     const [leaflet, setLeaflet] = useState(null);
     const [tool, setTool] = useState('manual');
@@ -74,13 +49,33 @@ export default function DroneDashboard() {
     const mapInitialized = useRef(false);
     const markersRef = useRef([]);
     const polylinesRef = useRef([]);
-    const coveragePolygonsRef = useRef([]);
     const rectangleRef = useRef(null);
     const isDrawingRef = useRef(false);
     const startPointRef = useRef(null);
     const animationFrameRef = useRef(null);
     const simulationStateRef = useRef({});
+    const controlSocketRef = useRef(null);
+    const motorIntervalRef = useRef(null);
 
+    // Establish Control WebSocket connection
+    useEffect(() => {
+        const ws = new WebSocket(CONTROL_URL);
+        controlSocketRef.current = ws;
+        ws.onopen = () => console.log('Control WebSocket connected.');
+        ws.onclose = () => console.log('Control WebSocket disconnected.');
+        ws.onerror = (err) => console.error('Control WebSocket error:', err);
+        return () => ws.close();
+    }, []);
+
+    // Function to send commands to the control socket
+    const sendCommand = (command) => {
+        if (controlSocketRef.current?.readyState === WebSocket.OPEN) {
+            console.log(`Sending motor command: ${command}`);
+            controlSocketRef.current.send(command);
+        }
+    };
+
+    // Load Leaflet library dynamically
     useEffect(() => {
         if (window.L) {
             setLeaflet(window.L);
@@ -96,9 +91,10 @@ export default function DroneDashboard() {
         document.body.appendChild(script);
     }, []);
 
+    // Initialize map
     useEffect(() => {
         if (!leaflet || mapRef.current) return;
-        const mapInstance = leaflet.map('map').setView([19.4326, -99.1332], 5); 
+        const mapInstance = leaflet.map('map').setView([19.4326, -99.1332], 5); // Default view
         leaflet.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '© OpenStreetMap'
         }).addTo(mapInstance);
@@ -107,6 +103,7 @@ export default function DroneDashboard() {
         return () => mapRef.current?.remove();
     }, [leaflet]);
     
+    // Center map on first valid drone location
     useEffect(() => {
         if (map && droneInfo?.location?.lat && !mapInitialized.current) {
             map.setView([droneInfo.location.lat, droneInfo.location.lon], 16);
@@ -124,6 +121,7 @@ export default function DroneDashboard() {
         return R * c;
     };
 
+    // Handle map interactions for drawing waypoints
     useEffect(() => {
         if (!map || !leaflet || isSimulating) return;
         const handleMapClick = (e) => {
@@ -141,11 +139,11 @@ export default function DroneDashboard() {
         const handleMouseMove = (e) => {
             if (isDrawingRef.current && startPointRef.current) rectangleRef.current.setBounds([startPointRef.current, e.latlng]);
         };
-        const handleMouseUp = (e) => {
+        const handleMouseUp = () => {
             if (isDrawingRef.current && startPointRef.current) {
                 isDrawingRef.current = false;
                 map.dragging.enable();
-                generateLawnmowerPattern(startPointRef.current, e.latlng);
+                generateLawnmowerPattern(startPointRef.current, rectangleRef.current.getBounds().getNorthEast());
                 startPointRef.current = null;
             }
         };
@@ -158,32 +156,17 @@ export default function DroneDashboard() {
         };
     }, [map, leaflet, tool, isSimulating]);
 
-    const createCorridor = (start, end, width) => {
-        const toRad = deg => deg * Math.PI / 180;
-        const toDeg = rad => rad * 180 / Math.PI;
-        const lat1 = toRad(start[0]), lon1 = toRad(start[1]), lat2 = toRad(end[0]), lon2 = toRad(end[1]);
-        const bearing = Math.atan2(Math.sin(lon2 - lon1) * Math.cos(lat2), Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(lon2 - lon1));
-        const perpBearing1 = bearing + Math.PI / 2, perpBearing2 = bearing - Math.PI / 2;
-        const R = 6371000, d = width / 2;
-        const offset = (lat, lon, brng) => {
-            const lat_out = Math.asin(Math.sin(lat) * Math.cos(d / R) + Math.cos(lat) * Math.sin(d / R) * Math.cos(brng));
-            const lon_out = lon + Math.atan2(Math.sin(brng) * Math.sin(d / R) * Math.cos(lat), Math.cos(d / R) - Math.sin(lat) * Math.sin(lat_out));
-            return [toDeg(lat_out), toDeg(lon_out)];
-        };
-        return [offset(lat1, lon1, perpBearing1), offset(lat1, lon1, perpBearing2), offset(lat2, lon2, perpBearing2), offset(lat2, lon2, perpBearing1)];
-    };
-
+    // Update markers and lines when waypoints change
     useEffect(() => {
         if (!map || !leaflet) return;
-        [...markersRef.current, ...polylinesRef.current, ...coveragePolygonsRef.current].forEach(layer => layer.remove());
-        markersRef.current = []; polylinesRef.current = []; coveragePolygonsRef.current = [];
+        markersRef.current.forEach(layer => layer.remove());
+        polylinesRef.current.forEach(layer => layer.remove());
+        markersRef.current = []; 
+        polylinesRef.current = [];
         waypoints.forEach((point, idx) => {
             markersRef.current.push(leaflet.circleMarker(point, { radius: 6, fillColor: NEW_GREEN_COLOR, color: NEW_GREEN_DARKER, weight: 2, opacity: 1, fillOpacity: 1 }).addTo(map));
-            coveragePolygonsRef.current.push(leaflet.circle(point, { radius: 50, color: NEW_GREEN_COLOR, fillColor: NEW_GREEN_COLOR, fillOpacity: 0.1, weight: 1 }).addTo(map));
             if (idx > 0) {
                 polylinesRef.current.push(leaflet.polyline([waypoints[idx - 1], point], { color: NEW_GREEN_COLOR, weight: 2, dashArray: '5, 5', opacity: 0.8 }).addTo(map));
-                const corridor = createCorridor(waypoints[idx - 1], point, 100);
-                coveragePolygonsRef.current.push(leaflet.polygon(corridor, { color: NEW_GREEN_COLOR, fillColor: NEW_GREEN_COLOR, fillOpacity: 0.1, weight: 1 }).addTo(map));
             }
         });
     }, [waypoints, map, leaflet]);
@@ -224,17 +207,19 @@ export default function DroneDashboard() {
     const startSimulation = () => {
         if (waypoints.length < 2 || isSimulating || !leaflet) return;
         
-        const segmentDistances = [];
-        for (let i = 0; i < waypoints.length - 1; i++) {
-            segmentDistances.push(getDistance(waypoints[i], waypoints[i + 1]));
+        // --- FIX: Remove the previous drone marker if it exists ---
+        if (droneMarker) {
+            droneMarker.remove();
         }
+        // ---------------------------------------------------------
+        
+        const segmentDistances = waypoints.slice(1).map((wp, i) => getDistance(waypoints[i], wp));
         const totalDistance = segmentDistances.reduce((a, b) => a + b, 0);
         
         simulationStateRef.current = {
             startTime: performance.now(),
             segmentDistances,
             totalDistance,
-            totalDuration: (totalDistance / SIMULATION_SPEED_MPS) * 1000,
         };
 
         const droneIcon = leaflet.divIcon({
@@ -244,10 +229,15 @@ export default function DroneDashboard() {
             iconAnchor: [25, 25]
         });
         const marker = leaflet.marker(waypoints[0], { icon: droneIcon }).addTo(map);
-        setDroneMarker(marker);
+        setDroneMarker(marker); // Set the new marker in state
         setIsSimulating(true);
+
+        // Start sending "up" command every 10 seconds
+        sendCommand('up');
+        motorIntervalRef.current = setInterval(() => sendCommand('up'), 2000);
     };
 
+    // Simulation animation loop
     useEffect(() => {
         if (!isSimulating || !droneMarker) {
             if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
@@ -262,6 +252,8 @@ export default function DroneDashboard() {
             if (elapsedDistance >= totalDistance) {
                 droneMarker.setLatLng(waypoints[waypoints.length - 1]);
                 setIsSimulating(false);
+                clearInterval(motorIntervalRef.current);
+                sendCommand('stop');
                 return;
             }
 
@@ -278,7 +270,6 @@ export default function DroneDashboard() {
             const distanceIntoSegment = elapsedDistance - distanceTraveled;
             const segmentProgress = distanceIntoSegment / segmentDistances[currentSegment];
             const start = waypoints[currentSegment], end = waypoints[currentSegment + 1];
-
             const currentLat = start[0] + (end[0] - start[0]) * segmentProgress;
             const currentLng = start[1] + (end[1] - start[1]) * segmentProgress;
             droneMarker.setLatLng([currentLat, currentLng]);
@@ -300,33 +291,21 @@ export default function DroneDashboard() {
     const clearAll = (clearRectangle = true) => {
         setIsSimulating(false);
         setWaypoints([]);
-        if (droneMarker) droneMarker.remove();
-        setDroneMarker(null);
+        if (droneMarker) {
+            droneMarker.remove();
+            setDroneMarker(null);
+        }
         if (clearRectangle && rectangleRef.current) {
             rectangleRef.current.remove();
             rectangleRef.current = null;
         }
+        clearInterval(motorIntervalRef.current);
+        sendCommand('stop');
     };
 
-    const radiansToDegrees = (rad) => (rad * 180 / Math.PI);
-
     return (
-        <div className="relative w-full h-full">
+        <div className="relative w-full h-full font-sans">
             <div id="map" className="w-full h-full rounded-xl"></div>
-
-            <div className="absolute bottom-4 left-4 z-[1000] w-full max-w-sm">
-                 <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                    <StatCard icon={<BatteryFull size={16}/>} label="Battery" value={`${droneInfo?.battery?.level || 0}%`} valueClassName="text-xl">
-                        <BatteryBar level={droneInfo?.battery?.level} />
-                    </StatCard>
-                    <StatCard icon={<Zap size={16}/>} label="Voltage" value={`${droneInfo?.battery?.voltage?.toFixed(2) || '0.00'} V`} valueClassName="text-xl"/>
-                    <StatCard icon={<ArrowUp size={16}/>} label="Altitude" value={`${droneInfo?.location?.alt?.toFixed(1) || '0.0'} m`} valueClassName="text-xl"/>
-                    <StatCard icon={<Navigation size={16}/>} label="Attitude" value={`P: ${radiansToDegrees(droneInfo?.attitude?.pitch).toFixed(0)}° R: ${radiansToDegrees(droneInfo?.attitude?.roll).toFixed(0)}°`} valueClassName="text-lg"/>
-                    <StatCard icon={<Compass size={16}/>} label="Heading" value={`${droneInfo?.heading || 0}°`} valueClassName="text-xl"/>
-                    <StatCard icon={<Satellite size={16}/>} label="Satellites" value={droneInfo?.satellites || 0} valueClassName="text-xl"/>
-                </div>
-            </div>
-
             <div className="absolute top-4 right-4 bg-white rounded-lg shadow-lg p-4 w-64 z-[1000]">
                 <h3 className="text-lg font-semibold mb-3 text-gray-800">Mission Planner</h3>
                 
@@ -350,3 +329,4 @@ export default function DroneDashboard() {
         </div>
     );
 }
+
