@@ -3,12 +3,6 @@ import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 
 const RecenterAutomatically = ({ position }) => {
-  const map = useMap();
-  useEffect(() => {
-    if (position) {
-      map.setView(position);
-    }
-  }, [position, map]);
   return null;
 };
 
@@ -64,7 +58,7 @@ export default function DroneMap() {
     iconAnchor: [25, 25],
   }), []);
 
-  const dronePosition = droneData ? [droneData.location.lat, droneData.location.lon] : null;
+  const dronePosition = defaultPosition;
   const mapCenter = defaultPosition;
 
   return (
