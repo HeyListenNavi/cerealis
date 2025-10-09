@@ -20,6 +20,7 @@
             <div class="flex flex-col items-center justify-center gap-3 h-full">
                 <h2 class="text-2xl font-bold">Conecta tu Dispositivo</h2>
                 <p class="text-white/80 text-lg">Únete a la red <span class="font-bold text-white">"Cerealis_Drone"</span>.</p>
+                                <img class="w-48 rounded-lg border border-white/20" src="{{ asset('wifi-qr.png') }}" alt="Código QR de Cerealis">
             </div>
         </div>
 
