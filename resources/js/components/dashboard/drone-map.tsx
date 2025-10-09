@@ -2,7 +2,12 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 
-const RecenterAutomatically = ({ position }) => {
+const RecenterAutomatically = () => {
+  const map = useMap();
+  useEffect(() => {
+    const fixedPosition = [29.098668, -110.997321];
+    map.setView(fixedPosition);
+  }, [map]);
   return null;
 };
 
