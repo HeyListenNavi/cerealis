@@ -15,7 +15,7 @@ const RecenterAutomatically = ({ position }) => {
 export default function DroneMap() {
   const [droneData, setDroneData] = useState(null);
   const [error, setError] = useState(null);
-  const defaultPosition = [19.4326, -99.1332]; // Mexico City
+  const defaultPosition = [29.098668, -110.997321]; // Mexico City
 
   useEffect(() => {
     const ws = new WebSocket("wss://websockets.cerealis.cloud/ws/drone_info");
@@ -65,7 +65,7 @@ export default function DroneMap() {
   }), []);
 
   const dronePosition = droneData ? [droneData.location.lat, droneData.location.lon] : null;
-  const mapCenter = dronePosition || defaultPosition;
+  const mapCenter = defaultPosition;
 
   return (
       <MapContainer
