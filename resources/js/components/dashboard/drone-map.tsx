@@ -77,18 +77,18 @@ export default function DroneMap() {
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
-        {dronePosition && (
-          <Marker position={dronePosition} icon={droneIcon}>
-            <Popup>
-              <b>Drone Telemetry</b> <br />
-              Lat: {droneData.location.lat.toFixed(6)} <br />
-              Lon: {droneData.location.lon.toFixed(6)} <br />
-              Altitude: {droneData.location.alt.toFixed(2)}m <br />
-              Mode: {droneData.mode} <br />
-              Battery: {droneData.battery.voltage.toFixed(2)}V
-            </Popup>
-          </Marker>
-        )}
+        {droneData && droneData.location && (
+  <Marker position={[droneData.location.lat, droneData.location.lon]} icon={droneIcon}>
+    <Popup>
+      <b>Drone Telemetry</b> <br />
+      Lat: {droneData.location.lat.toFixed(6)} <br />
+      Lon: {droneData.location.lon.toFixed(6)} <br />
+      Altitude: {droneData.location.alt.toFixed(2)}m <br />
+      Mode: {droneData.mode} <br />
+      Battery: {droneData.battery.voltage.toFixed(2)}V
+    </Popup>
+  </Marker>
+)}
         <RecenterAutomatically position={dronePosition} />
       </MapContainer>
   );
