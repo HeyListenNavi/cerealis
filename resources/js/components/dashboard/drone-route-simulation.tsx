@@ -94,22 +94,15 @@ export default function DroneDashboard() {
     // Initialize map
     useEffect(() => {
         if (!leaflet || mapRef.current) return;
-        const mapInstance = leaflet.map('map').setView([19.4326, -99.1332], 5); // Default view
+        const mapInstance = leaflet.map('map').setView([29.098668,-110.997321], 16); // Default view
         leaflet.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '© OpenStreetMap'
         }).addTo(mapInstance);
         mapRef.current = mapInstance;
         setMap(mapInstance);
+        mapInitialized.current = true;
         return () => mapRef.current?.remove();
     }, [leaflet]);
-    
-    // Center map on first valid drone location
-    useEffect(() => {
-        if (map && droneInfo?.location?.lat && !mapInitialized.current) {
-            map.setView([droneInfo.location.lat, droneInfo.location.lon], 16);
-            mapInitialized.current = true;
-        }
-    }, [map, droneInfo]);
 
     const getDistance = (p1, p2) => {
         const toRad = deg => deg * Math.PI / 180;
