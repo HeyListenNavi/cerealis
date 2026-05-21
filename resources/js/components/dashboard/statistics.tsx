@@ -1,114 +1,16 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { MapContainer, TileLayer, Polygon, Tooltip as LeafletTooltip, useMap } from 'react-leaflet';
 import L from 'leaflet';
+import { fieldZones, getRecommendationsForZone } from '@/lib/field-data';
 import { 
     Leaf, 
     Droplets, 
     FlaskConical, 
     AlertTriangle, 
-    ArrowUp, 
-    ArrowDown, 
     CheckCircle, 
     Map as MapIcon,
     Info
 } from 'lucide-react';
-
-// Simplified data structure with more realistic agave field shapes
-const fieldZones = [
-    {
-        id: 'norte-superior',
-        name: "Lote Norte A",
-        color: "#658c2d", // Healthy
-        bounds: [
-            [32.5365, -116.9278],
-            [32.5368, -116.9260],
-            [32.5362, -116.9258],
-            [32.5359, -116.9272],
-            [32.5361, -116.9276]
-        ],
-        metrics: {
-            salud: { label: "Salud General", value: 95, status: "Excelente", color: "text-green-400" },
-            nutrientes: { label: "Nivel de Nutrientes", value: 90, status: "Alto", color: "text-green-400" },
-            humedad: { label: "Humedad del Suelo", value: 80, status: "Óptima", color: "text-green-400" },
-            plagas: { label: "Riesgo de Plagas", value: 2, status: "Inexistente", color: "text-green-400" }
-        },
-        summary: "El Lote Norte A presenta el mejor desarrollo foliar de la temporada. Los niveles de nitrógeno son ideales."
-    },
-    {
-        id: 'norte-inferior',
-        name: "Lote Norte B",
-        color: "#658c2d", // Healthy
-        bounds: [
-            [32.5359, -116.9272],
-            [32.5362, -116.9258],
-            [32.5355, -116.9255],
-            [32.5352, -116.9268]
-        ],
-        metrics: {
-            salud: { label: "Salud General", value: 88, status: "Muy Buena", color: "text-green-400" },
-            nutrientes: { label: "Nivel de Nutrientes", value: 82, status: "Bueno", color: "text-green-400" },
-            humedad: { label: "Humedad del Suelo", value: 70, status: "Adecuada", color: "text-green-400" },
-            plagas: { label: "Riesgo de Plagas", value: 8, status: "Bajo", color: "text-green-400" }
-        },
-        summary: "Desarrollo constante. Se recomienda mantener el ciclo de riego actual sin cambios."
-    },
-    {
-        id: 'centro',
-        name: "Sección Central",
-        color: "#f59e0b", // Warning
-        bounds: [
-            [32.5352, -116.9268],
-            [32.5355, -116.9255],
-            [32.5348, -116.9252],
-            [32.5344, -116.9260],
-            [32.5346, -116.9266]
-        ],
-        metrics: {
-            salud: { label: "Salud General", value: 65, status: "Regular", color: "text-yellow-400" },
-            nutrientes: { label: "Nivel de Nutrientes", value: 50, status: "Moderado", color: "text-yellow-400" },
-            humedad: { label: "Humedad del Suelo", value: 38, status: "Baja", color: "text-yellow-400" },
-            plagas: { label: "Riesgo de Plagas", value: 30, status: "Moderado", color: "text-yellow-400" }
-        },
-        summary: "Se detecta estrés hídrico moderado en el centro del lote. Posible obstrucción en goteo."
-    },
-    {
-        id: 'sur-este',
-        name: "Lote Sur Este",
-        color: "#ef4444", // Critical
-        bounds: [
-            [32.5348, -116.9252],
-            [32.5350, -116.9242],
-            [32.5342, -116.9238],
-            [32.5338, -116.9248]
-        ],
-        metrics: {
-            salud: { label: "Salud General", value: 42, status: "Crítica", color: "text-red-400" },
-            nutrientes: { label: "Nivel de Nutrientes", value: 28, status: "Deficiente", color: "text-red-400" },
-            humedad: { label: "Humedad del Suelo", value: 12, status: "Muy Baja", color: "text-red-400" },
-            plagas: { label: "Riesgo de Plagas", value: 65, status: "Alto", color: "text-red-400" }
-        },
-        summary: "Urgencia detectada: Zona con alta evaporación y baja retención. Requiere fertilización foliar inmediata."
-    },
-    {
-        id: 'sur-oeste',
-        name: "Lote Sur Oeste",
-        color: "#f59e0b", // Warning
-        bounds: [
-            [32.5346, -116.9266],
-            [32.5344, -116.9260],
-            [32.5338, -116.9248],
-            [32.5334, -116.9255],
-            [32.5336, -116.9268]
-        ],
-        metrics: {
-            salud: { label: "Salud General", value: 72, status: "Bueno", color: "text-yellow-400" },
-            nutrientes: { label: "Nivel de Nutrientes", value: 65, status: "Estable", color: "text-yellow-400" },
-            humedad: { label: "Humedad del Suelo", value: 55, status: "Regular", color: "text-yellow-400" },
-            plagas: { label: "Riesgo de Plagas", value: 15, status: "Controlado", color: "text-yellow-400" }
-        },
-        summary: "Zona en recuperación tras el último tratamiento. Mantener vigilancia sobre humedad relativa."
-    }
-];
 
 const RecenterMap = ({ bounds }) => {
     const map = useMap();
@@ -120,6 +22,14 @@ const RecenterMap = ({ bounds }) => {
     return null;
 };
 
+const bgColors = {
+    'text-green-400': 'bg-green-400',
+    'text-yellow-400': 'bg-yellow-400',
+    'text-orange-400': 'bg-orange-400',
+    'text-red-400': 'bg-red-400',
+    'text-red-500': 'bg-red-500',
+};
+
 const MetricCard = ({ label, value, status, color }) => (
     <div className="bg-gray-800/40 p-4 rounded-xl border border-gray-700/30">
         <p className="text-sm text-gray-400 mb-1">{label}</p>
@@ -127,9 +37,9 @@ const MetricCard = ({ label, value, status, color }) => (
             <div className="text-2xl font-bold text-white">{value}%</div>
             <div className={`text-sm font-semibold ${color}`}>{status}</div>
         </div>
-        <div className="w-full bg-gray-700 h-1.5 rounded-full mt-3 overflow-hidden">
+        <div className="w-full bg-gray-700 h-2 rounded-full mt-3 overflow-hidden border border-gray-800">
             <div 
-                className={`h-full rounded-full transition-all duration-500 ${color.replace('text-', 'bg-')}`} 
+                className={`h-full rounded-full transition-all duration-1000 ${bgColors[color] || 'bg-zinc-500'}`} 
                 style={{ width: `${value}%` }}
             />
         </div>
@@ -152,69 +62,12 @@ export default function AIAnalyticsDashboard() {
             humedad: { label: "Humedad Promedio", value: 44, status: "Baja", color: "text-yellow-400" },
             plagas: { label: "Riesgo de Plagas", value: 30, status: "Moderado", color: "text-yellow-400" }
         },
-        summary: "El campo presenta variaciones significativas. Los lotes del Sur requieren atención prioritaria en riego. Haz clic en una zona para ver el diagnóstico específico de cada sector."
+        summary: "El dron ya revisó todo el campo. En general las cosas van bien, pero los lotes del Sur necesitan que les echemos una mano con el riego pronto. Toca cualquier zona en el mapa para ver más detalles."
     };
 
     const recommendations = useMemo(() => {
         if (selectedZone) {
-            if (selectedZone.id.includes('norte')) {
-                return [
-                    { 
-                        title: "Mantenimiento Preventivo",
-                        text: `Todo se ve excelente en ${selectedZone.name}. Solo mantén el riego actual.`, 
-                        priority: "Baja",
-                        why: "Las plantas están en su punto óptimo de hidratación y nutrientes.",
-                        icon: CheckCircle,
-                        color: "text-green-400"
-                    },
-                    { 
-                        title: "Planificación de Cosecha",
-                        text: `Empieza a preparar las herramientas para la cosecha selectiva.`, 
-                        priority: "Media",
-                        why: "El tamaño de las pencas indica que estarán listas en unos 15 días.",
-                        icon: Leaf,
-                        color: "text-blue-400"
-                    }
-                ];
-            } else if (selectedZone.id === 'centro') {
-                return [
-                    { 
-                        title: "Ajuste de Riego",
-                        text: `Aumenta el tiempo de goteo en 15 minutos durante la mañana.`, 
-                        priority: "Alta",
-                        why: "Hemos notado que el suelo se está secando más rápido de lo normal en el centro.",
-                        icon: Droplets,
-                        color: "text-orange-400"
-                    },
-                    { 
-                        title: "Nutrición Extra",
-                        text: `Añade un poco de potasio al sistema de fertirriego.`, 
-                        priority: "Media",
-                        why: "Ayudará a que las plantas de esta zona recuperen su color verde intenso.",
-                        icon: FlaskConical,
-                        color: "text-yellow-400"
-                    }
-                ];
-            } else {
-                return [
-                    { 
-                        title: "¡Riego Urgente!",
-                        text: `Necesitas aplicar un riego profundo de inmediato en ${selectedZone.name}.`, 
-                        priority: "Crítica",
-                        why: "Las plantas están sufriendo por falta de agua y podrían empezar a marchitarse.",
-                        icon: Droplets,
-                        color: "text-red-500"
-                    },
-                    { 
-                        title: "Protección de Cultivo",
-                        text: `Aplica el tratamiento contra hongos antes de que caiga el sol.`, 
-                        priority: "Alta",
-                        why: "La humedad nocturna combinada con el calor actual favorece las plagas en esta zona baja.",
-                        icon: AlertTriangle,
-                        color: "text-orange-400"
-                    }
-                ];
-            }
+            return getRecommendationsForZone(selectedZone.id, selectedZone.name);
         }
         return [
             { 

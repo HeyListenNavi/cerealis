@@ -20,6 +20,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('statistics', function () {
         return Inertia::render('statistics');
     })->name('statistics');
+
+    Route::get('report', function () {
+        return Inertia::render('report');
+    })->name('report');
 });
 
 Route::get('/reset-demo/philipmamon', [DemoSessionController::class, 'reset']);
