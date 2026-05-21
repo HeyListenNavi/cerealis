@@ -43,6 +43,7 @@ export default function DroneDashboard() {
     const [leaflet, setLeaflet] = useState(null);
     const [tool, setTool] = useState('manual');
     const [waypoints, setWaypoints] = useState([]);
+    const [polygonPoints, setPolygonPoints] = useState([]);
     const [isSimulating, setIsSimulating] = useState(false);
     const [droneMarker, setDroneMarker] = useState(null);
     const mapRef = useRef(null);
@@ -50,6 +51,7 @@ export default function DroneDashboard() {
     const markersRef = useRef([]);
     const polylinesRef = useRef([]);
     const rectangleRef = useRef(null);
+    const polygonRef = useRef(null);
     const isDrawingRef = useRef(false);
     const startPointRef = useRef(null);
     const animationFrameRef = useRef(null);
@@ -94,9 +96,28 @@ export default function DroneDashboard() {
     // Initialize map
     useEffect(() => {
         if (!leaflet || mapRef.current) return;
-        const mapInstance = leaflet.map('map').setView([29.098668,-110.997321], 16); // Default view
+        
+        const fallbackCoords = [32.535404, -116.926896];
+        const mapInstance = leaflet.map('map').setView(fallbackCoords, 16);
+        
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    const { latitude, longitude } = position.coords;
+                    mapInstance.setView([latitude, longitude], 16);
+                },
+                (error) => {
+                    console.error("Error getting current location:", error);
+                }
+            );
+        }
+
+        leaflet.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+            attribution: '&copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
+        }).addTo(mapInstance);
         leaflet.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© OpenStreetMap'
+            attribution: '&copy; OpenStreetMap contributors',
+            opacity: 0.4
         }).addTo(mapInstance);
         mapRef.current = mapInstance;
         setMap(mapInstance);
@@ -114,11 +135,40 @@ export default function DroneDashboard() {
         return R * c;
     };
 
+    const isPointInPolygon = (point, polygon) => {
+        const x = point[0], y = point[1];
+        let inside = false;
+        for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+            const xi = polygon[i][0], yi = polygon[i][1];
+            const xj = polygon[j][0], yj = polygon[j][1];
+            const intersect = ((yi > y) !== (yj > y))
+                && (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
+            if (intersect) inside = !inside;
+        }
+        return inside;
+    };
+
+    // Update polygon layer and generate grid when points change
+    useEffect(() => {
+        if (!map || !leaflet) return;
+        if (polygonRef.current) polygonRef.current.remove();
+        if (polygonPoints.length > 0) {
+            polygonRef.current = leaflet.polygon(polygonPoints, { color: NEW_GREEN_COLOR, weight: 2, fillOpacity: 0.2 }).addTo(map);
+            
+            if (tool === 'polygon' && polygonPoints.length >= 3) {
+                generatePolygonGrid();
+            }
+        } else if (tool === 'polygon') {
+            setWaypoints([]);
+        }
+    }, [polygonPoints, map, leaflet, tool]);
+
     // Handle map interactions for drawing waypoints
     useEffect(() => {
         if (!map || !leaflet || isSimulating) return;
         const handleMapClick = (e) => {
             if (tool === 'manual') setWaypoints(prev => [...prev, [e.latlng.lat, e.latlng.lng]]);
+            if (tool === 'polygon') setPolygonPoints(prev => [...prev, [e.latlng.lat, e.latlng.lng]]);
         };
         const handleMouseDown = (e) => {
             if (tool === 'auto') {
@@ -136,12 +186,13 @@ export default function DroneDashboard() {
             if (isDrawingRef.current && startPointRef.current) {
                 isDrawingRef.current = false;
                 map.dragging.enable();
-                generateLawnmowerPattern(startPointRef.current, rectangleRef.current.getBounds().getNorthEast());
+                const bounds = rectangleRef.current.getBounds();
+                generateLawnmowerPattern(bounds.getSouthWest(), bounds.getNorthEast());
                 startPointRef.current = null;
             }
         };
         map.on({ click: handleMapClick, mousedown: handleMouseDown, mousemove: handleMouseMove, mouseup: handleMouseUp });
-        map.getContainer().style.cursor = tool === 'auto' ? 'crosshair' : '';
+        map.getContainer().style.cursor = (tool === 'auto' || tool === 'polygon') ? 'crosshair' : '';
         return () => {
             map.off({ click: handleMapClick, mousedown: handleMouseDown, mousemove: handleMouseMove, mouseup: handleMouseUp });
             map.getContainer().style.cursor = '';
@@ -167,33 +218,97 @@ export default function DroneDashboard() {
     const generateLawnmowerPattern = (start, end) => {
         clearAll(false);
         const bounds = leaflet.latLngBounds(start, end);
-        const northEast = bounds.getNorthEast(), southWest = bounds.getSouthWest();
-        const latDiff = northEast.lat - southWest.lat;
-        const coverageWidthMeters = 50, coverageWidthDegrees = coverageWidthMeters / 111320;
+        const south = bounds.getSouth();
+        const north = bounds.getNorth();
+        const west = bounds.getWest();
+        const east = bounds.getEast();
+        
+        // Use a tighter spacing for better coverage (e.g., 10 meters)
+        const coverageWidthMeters = 10;
+        const latMetersPerDegree = 111320;
+        const coverageWidthDegrees = coverageWidthMeters / latMetersPerDegree;
+        
+        const latDiff = north - south;
         const numPasses = Math.max(2, Math.ceil(latDiff / coverageWidthDegrees));
         const spacing = latDiff / (numPasses - 1);
-        const cornerPoints = [], finalWaypoints = [];
-        let currentLat = southWest.lat, leftToRight = true;
+        
+        const finalWaypoints = [];
+        let leftToRight = true;
+        
         for (let i = 0; i < numPasses; i++) {
-            cornerPoints.push([currentLat, leftToRight ? southWest.lng : northEast.lng]);
-            cornerPoints.push([currentLat, leftToRight ? northEast.lng : southWest.lng]);
-            currentLat += spacing;
+            const currentLat = south + (i * spacing);
+            
+            if (leftToRight) {
+                finalWaypoints.push([currentLat, west]);
+                finalWaypoints.push([currentLat, east]);
+            } else {
+                finalWaypoints.push([currentLat, east]);
+                finalWaypoints.push([currentLat, west]);
+            }
             leftToRight = !leftToRight;
         }
-        const maxSegmentLength = 200;
-        for (let i = 0; i < cornerPoints.length; i++) {
-            finalWaypoints.push(cornerPoints[i]);
-            if (i < cornerPoints.length - 1) {
-                const p1 = cornerPoints[i], p2 = cornerPoints[i + 1];
-                const segmentDist = getDistance(p1, p2);
-                if (segmentDist > maxSegmentLength) {
-                    const numSubdivisions = Math.ceil(segmentDist / maxSegmentLength);
-                    for (let j = 1; j < numSubdivisions; j++) {
-                        finalWaypoints.push([p1[0] + (p2[0] - p1[0]) * (j / numSubdivisions), p1[1] + (p2[1] - p1[1]) * (j / numSubdivisions)]);
+        
+        setWaypoints(finalWaypoints);
+    };
+
+    const generatePolygonGrid = () => {
+        if (polygonPoints.length < 3) return;
+        
+        const bounds = leaflet.polygon(polygonPoints).getBounds();
+        const south = bounds.getSouth();
+        const north = bounds.getNorth();
+        const west = bounds.getWest();
+        const east = bounds.getEast();
+        
+        const coverageWidthMeters = 10;
+        const latMetersPerDegree = 111320;
+        const coverageWidthDegrees = coverageWidthMeters / latMetersPerDegree;
+        
+        const latDiff = north - south;
+        const numPasses = Math.max(2, Math.ceil(latDiff / coverageWidthDegrees));
+        const spacing = latDiff / (numPasses - 1);
+        
+        let finalWaypoints = [];
+        let leftToRight = true;
+        
+        for (let i = 0; i < numPasses; i++) {
+            const currentLat = south + (i * spacing);
+            
+            // Find intersections of this latitude with polygon edges
+            let intersections = [];
+            for (let j = 0; j < polygonPoints.length; j++) {
+                const p1 = polygonPoints[j];
+                const p2 = polygonPoints[(j + 1) % polygonPoints.length];
+                
+                if ((p1[0] <= currentLat && p2[0] > currentLat) || (p2[0] <= currentLat && p1[0] > currentLat)) {
+                    const t = (currentLat - p1[0]) / (p2[0] - p1[0]);
+                    const lng = p1[1] + t * (p2[1] - p1[1]);
+                    intersections.push(lng);
+                }
+            }
+            
+            intersections.sort((a, b) => a - b);
+            
+            // Generate segments between pairs of intersections
+            const passWaypoints = [];
+            for (let j = 0; j < intersections.length; j += 2) {
+                if (j + 1 < intersections.length) {
+                    if (leftToRight) {
+                        passWaypoints.push([currentLat, intersections[j]]);
+                        passWaypoints.push([currentLat, intersections[j+1]]);
+                    } else {
+                        passWaypoints.push([currentLat, intersections[j+1]]);
+                        passWaypoints.push([currentLat, intersections[j]]);
                     }
                 }
             }
+            
+            if (passWaypoints.length > 0) {
+                finalWaypoints = [...finalWaypoints, ...passWaypoints];
+                leftToRight = !leftToRight;
+            }
         }
+        
         setWaypoints(finalWaypoints);
     };
 
@@ -281,16 +396,23 @@ export default function DroneDashboard() {
         };
     }, [isSimulating, droneMarker, waypoints]);
 
-    const clearAll = (clearRectangle = true) => {
+    const clearAll = (clearShapes = true) => {
         setIsSimulating(false);
         setWaypoints([]);
         if (droneMarker) {
             droneMarker.remove();
             setDroneMarker(null);
         }
-        if (clearRectangle && rectangleRef.current) {
-            rectangleRef.current.remove();
-            rectangleRef.current = null;
+        if (clearShapes) {
+            if (rectangleRef.current) {
+                rectangleRef.current.remove();
+                rectangleRef.current = null;
+            }
+            if (polygonRef.current) {
+                polygonRef.current.remove();
+                polygonRef.current = null;
+            }
+            setPolygonPoints([]);
         }
         clearInterval(motorIntervalRef.current);
         sendCommand('stop');
@@ -300,22 +422,23 @@ export default function DroneDashboard() {
         <div className="relative w-full h-full font-sans">
             <div id="map" className="w-full h-full rounded-xl"></div>
             <div className="absolute top-4 right-4 bg-white rounded-lg shadow-lg p-4 w-64 z-[1000]">
-                <h3 className="text-lg font-semibold mb-3 text-gray-800">Mission Planner</h3>
+                <h3 className="text-lg font-semibold mb-3 text-gray-800">Planificador de Misión</h3>
                 
                 <div className="mb-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Tool</label>
-                    <div className="flex gap-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Herramienta</label>
+                    <div className="flex flex-wrap gap-2">
                         <button onClick={() => !isSimulating && setTool('manual')} disabled={isSimulating} className={`flex-1 py-2 px-3 rounded transition-colors text-white border-2 ${tool === 'manual' ? 'border-gray-800' : 'border-transparent'}`} style={{ backgroundColor: tool === 'manual' ? NEW_GREEN_DARKER : NEW_GREEN_COLOR }}>Manual</button>
                         <button onClick={() => !isSimulating && setTool('auto')} disabled={isSimulating} className={`flex-1 py-2 px-3 rounded transition-colors text-white border-2 ${tool === 'auto' ? 'border-gray-800' : 'border-transparent'}`} style={{ backgroundColor: tool === 'auto' ? NEW_GREEN_DARKER : NEW_GREEN_COLOR }}>Auto</button>
+                        <button onClick={() => !isSimulating && setTool('polygon')} disabled={isSimulating} className={`flex-1 py-2 px-3 rounded transition-colors text-white border-2 ${tool === 'polygon' ? 'border-gray-800' : 'border-transparent'}`} style={{ backgroundColor: tool === 'polygon' ? NEW_GREEN_DARKER : NEW_GREEN_COLOR }}>Polígono</button>
                     </div>
                 </div>
 
                 <div className="space-y-2">
                     <button onClick={startSimulation} disabled={waypoints.length < 2 || isSimulating} className="w-full py-2 px-4 rounded font-medium transition-colors text-white" style={{ backgroundColor: (waypoints.length >= 2 && !isSimulating) ? NEW_GREEN_COLOR : '#a0aec0', cursor: (waypoints.length >= 2 && !isSimulating) ? 'pointer' : 'not-allowed' }}>
-                        Start Simulation
+                        Iniciar Simulación
                     </button>
                     <button onClick={() => clearAll(true)} className="w-full py-2 px-4 bg-red-500 text-white rounded font-medium hover:bg-red-600 transition-colors">
-                        Clear All
+                        Limpiar Todo
                     </button>
                 </div>
             </div>

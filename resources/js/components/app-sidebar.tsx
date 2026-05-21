@@ -18,17 +18,17 @@ import AppLogo from './app-logo';
 
 const mainNavItems: NavItem[] = [
     {
-        title: 'Dashboard',
+        title: 'Panel Principal',
         href: dashboard(),
         icon: LayoutGrid,
     },
     {
-        title: 'Map',
+        title: 'Mapa',
         href: map(),
         icon: Map,
     },
     {
-        title: 'Statistics',
+        title: 'Estadísticas',
         href: statistics(),
         icon: ChartArea,
     },

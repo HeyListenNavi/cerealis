@@ -11,7 +11,7 @@ import DroneFeed from '@/components/dashboard/drone-feed';
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
-        title: 'Map',
+        title: 'Mapa',
         href: map().url,
     }
 ];

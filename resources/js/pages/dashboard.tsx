@@ -37,13 +37,13 @@ const Tabs = ({ tabs, activeTab, setActiveTab }) => {
 
 export default function Dashboard() {
     // Mobile tab states
-    const [activeTopTab, setActiveTopTab] = useState('Live Feed');
-    const [activeBottomTab, setActiveBottomTab] = useState('Manual Control');
+    const [activeTopTab, setActiveTopTab] = useState('Cámara en Vivo');
+    const [activeBottomTab, setActiveBottomTab] = useState('Control Manual');
 
     // Top tabs content (mobile)
     const topTabs = [
         {
-            label: 'Live Feed',
+            label: 'Cámara en Vivo',
             content: (
                 <div className="relative h-full">
                     <RGBFeed />
@@ -51,14 +51,14 @@ export default function Dashboard() {
                 </div>
             ),
         },
-        { label: 'Depth', content: <DepthFeed /> },
-        { label: 'Map', content: <DroneMap /> },
+        { label: 'Profundidad', content: <DepthFeed /> },
+        { label: 'Mapa', content: <DroneMap /> },
     ];
 
     // Bottom tabs content (mobile)
     const bottomTabs = [
-        { label: 'Manual Control', content: <ManualControl /> },
-        { label: 'Drone Status', content: <DroneFeed /> },
+        { label: 'Control Manual', content: <ManualControl /> },
+        { label: 'Estado del Dron', content: <DroneFeed /> },
     ];
 
     return (

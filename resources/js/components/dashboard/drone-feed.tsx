@@ -6,7 +6,7 @@ const INFO_URL = `${SERVER_IP}/ws/drone_info`;
 
 const useDroneTelemetry = (url) => {
     const [droneInfo, setDroneInfo] = useState(null);
-    const [connectionStatus, setConnectionStatus] = useState('Connecting...');
+    const [connectionStatus, setConnectionStatus] = useState('Conectando...');
 
     useEffect(() => {
         let ws;
@@ -15,7 +15,7 @@ const useDroneTelemetry = (url) => {
 
             ws.onopen = () => {
                 console.log("Telemetry feed connected.");
-                setConnectionStatus('Connected');
+                setConnectionStatus('Conectado');
             };
 
             ws.onmessage = (event) => {
@@ -29,7 +29,7 @@ const useDroneTelemetry = (url) => {
 
             ws.onclose = () => {
                 console.log("Telemetry feed disconnected. Retrying...");
-                setConnectionStatus('Disconnected');
+                setConnectionStatus('Desconectado');
                 setTimeout(connect, 5000);
             };
 
@@ -90,9 +90,9 @@ export default function DroneFeed() {
     return (
         <div className="text-gray-200 p-2 rounded-xl font-sans w-full max-w-4xl mx-auto">
             <div className="flex justify-between items-center mb-6 border-b border-gray-700/40 pb-4">
-                <h2 className="text-xl font-bold">Drone Telemetry</h2>
+                <h2 className="text-xl font-bold">Telemetría del Dron</h2>
                 <div className="flex items-center text-sm">
-                    <span className={`h-3 w-3 rounded-full mr-2 ${connectionStatus === 'Connected' ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></span>
+                    <span className={`h-3 w-3 rounded-full mr-2 ${connectionStatus === 'Conectado' ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></span>
                     {connectionStatus}
                 </div>
             </div>
@@ -100,7 +100,7 @@ export default function DroneFeed() {
             <div className="grid md:grid-cols-2 gap-4">
                 <StatCard
                     icon={<BatteryFull size={20} />}
-                    label="Battery"
+                    label="Batería"
                     value={`${droneInfo?.battery?.level || 0}%`}
                 >
                     <BatteryBar level={droneInfo?.battery?.level} />
@@ -108,19 +108,19 @@ export default function DroneFeed() {
                 
                 <StatCard
                     icon={<Zap size={20} />}
-                    label="Voltage"
+                    label="Voltaje"
                     value={`${droneInfo?.battery?.voltage?.toFixed(2) || '0.00'} V`}
                 />
 
                 <StatCard
                     icon={<ArrowUp size={20} />}
-                    label="Altitude"
+                    label="Altitud"
                     value={`${droneInfo?.location?.alt?.toFixed(1) || '0.0'} m`}
                 />
 
                 <StatCard
                     icon={<Home size={20} />}
-                    label="Location (Lat / Lon)"
+                    label="Ubicación (Lat / Lon)"
                     valueClassName="text-base" 
                     value={
                         <span>
@@ -133,13 +133,13 @@ export default function DroneFeed() {
 
                 <StatCard
                     icon={<Compass size={20} />}
-                    label="Heading"
+                    label="Rumbo"
                     value={`${droneInfo?.heading || 0}°`}
                 />
 
                 <StatCard
                     icon={<Satellite size={20} />}
-                    label="Satellites"
+                    label="Satélites"
                     value={droneInfo?.satellites || 0}
                 />
             </div>

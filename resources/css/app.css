@@ -154,3 +154,38 @@
 .drone-icon-container div {
   animation: spin 8s linear infinite;
 }
+
+.custom-zone-label {
+    background: rgba(24, 24, 27, 0.85) !important;
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    border-radius: 12px !important;
+    padding: 6px 10px !important;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5) !important;
+    color: white !important;
+    pointer-events: none !important;
+    white-space: nowrap !important;
+}
+
+.custom-zone-label .name {
+    display: block;
+    font-size: 10px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: rgba(255, 255, 255, 0.6);
+    line-height: 1;
+    margin-bottom: 2px;
+}
+
+.custom-zone-label .val {
+    display: block;
+    font-size: 14px;
+    font-weight: 900;
+    color: white;
+    line-height: 1;
+}
+
+.custom-zone-label::before {
+    display: none !important;
+}

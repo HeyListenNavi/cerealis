@@ -12,21 +12,25 @@ const CONTROL_URL = `${SERVER_IP}/ws/control`;
 
 const statusConfig = {
     'Connected': {
+        text: 'Conectado',
         textClass: 'text-green-500',
         bgClass: 'bg-green-500',
         pulse: false,
     },
     'Connecting...': {
+        text: 'Conectando...',
         textClass: 'text-yellow-500',
         bgClass: 'bg-yellow-500',
         pulse: true,
     },
     'Disconnected': {
+        text: 'Desconectado',
         textClass: 'text-red-500',
         bgClass: 'bg-red-500',
         pulse: false,
     },
     'Error': {
+        text: 'Error',
         textClass: 'text-red-700',
         bgClass: 'bg-red-700',
         pulse: false,
@@ -34,6 +38,7 @@ const statusConfig = {
 };
 
 const defaultStatusConfig = {
+    text: 'Desconocido',
     textClass: 'text-gray-500',
     bgClass: 'bg-gray-500',
     pulse: false,
@@ -101,7 +106,7 @@ export default function ManualControl() {
                     <span
                         className={`mr-3 size-3 rounded-full animate-pulse ${currentStatus.bgClass} ${currentStatus.pulse ? 'animate-pulse' : ''}`}
                     ></span>
-                    {connectionStatus}
+                    {currentStatus.text}
                 </p>
             </div>
 

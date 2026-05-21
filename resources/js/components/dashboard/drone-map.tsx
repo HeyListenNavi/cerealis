@@ -2,19 +2,34 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 
-const RecenterAutomatically = () => {
+const RecenterAutomatically = ({ position }) => {
   const map = useMap();
   useEffect(() => {
-    const fixedPosition = [29.098668, -110.997321];
-    map.setView(fixedPosition);
-  }, [map]);
+    if (position) {
+      map.setView(position);
+    }
+  }, [map, position]);
   return null;
 };
 
 export default function DroneMap() {
   const [droneData, setDroneData] = useState(null);
   const [error, setError] = useState(null);
-  const defaultPosition = [29.098668, -110.997321]; // Mexico City
+  const fallbackPosition = [32.535404, -116.926896];
+  const [mapCenter, setMapCenter] = useState(fallbackPosition);
+
+  useEffect(() => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setMapCenter([position.coords.latitude, position.coords.longitude]);
+        },
+        (error) => {
+          console.error("Error getting current location:", error);
+        }
+      );
+    }
+  }, []);
 
   useEffect(() => {
     const ws = new WebSocket("wss://websockets.cerealis.cloud/ws/drone_info");
@@ -63,9 +78,6 @@ export default function DroneMap() {
     iconAnchor: [25, 25],
   }), []);
 
-  const dronePosition = defaultPosition;
-  const mapCenter = defaultPosition;
-
   return (
       <MapContainer
         center={mapCenter}
@@ -74,22 +86,27 @@ export default function DroneMap() {
         style={{ height: '100%', width: '100%' }}
       >
         <TileLayer
+          attribution='&copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
+          url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+        />
+        <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          opacity={0.4}
         />
         {droneData && droneData.location && (
   <Marker position={[droneData.location.lat, droneData.location.lon]} icon={droneIcon}>
     <Popup>
-      <b>Drone Telemetry</b> <br />
+      <b>Telemetría del Dron</b> <br />
       Lat: {droneData.location.lat.toFixed(6)} <br />
       Lon: {droneData.location.lon.toFixed(6)} <br />
-      Altitude: {droneData.location.alt.toFixed(2)}m <br />
-      Mode: {droneData.mode} <br />
-      Battery: {droneData.battery.voltage.toFixed(2)}V
+      Altitud: {droneData.location.alt.toFixed(2)}m <br />
+      Modo: {droneData.mode} <br />
+      Batería: {droneData.battery.voltage.toFixed(2)}V
     </Popup>
   </Marker>
 )}
-        <RecenterAutomatically position={dronePosition} />
+        <RecenterAutomatically position={mapCenter} />
       </MapContainer>
   );
 }

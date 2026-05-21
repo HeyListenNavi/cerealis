@@ -1,227 +1,407 @@
-import React from 'react';
-import { Leaf, Droplets, FlaskConical, AlertTriangle, ArrowUp, ArrowDown, BarChart2, CheckCircle, BrainCircuit, Sparkles } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { MapContainer, TileLayer, Polygon, Tooltip as LeafletTooltip, useMap } from 'react-leaflet';
+import L from 'leaflet';
+import { 
+    Leaf, 
+    Droplets, 
+    FlaskConical, 
+    AlertTriangle, 
+    ArrowUp, 
+    ArrowDown, 
+    CheckCircle, 
+    Map as MapIcon,
+    Info
+} from 'lucide-react';
 
-const mockAnalysisData = {
-    scanDate: "2025-10-05T05:55:00Z", 
-    executiveSummary: "AI analysis indicates developing water stress in the northwest quadrant of the agave field, correlating with a 4% decline in the Vegetation Index (NDVI) over the past week. While overall health remains fair, immediate irrigation adjustments are recommended to prevent potential yield loss.",
-    alerts: [
-        { id: 'alert1', severity: 'warning', title: "High Water Stress Detected", details: "Crops shows a Water Stress Index of 82%, significantly above the acceptable threshold of 60%." },
-    ],
-    kpis: {
-        overallHealth: { value: 76, trend: -4, tooltip: "An AI-calculated index from 0-100 representing the general well-being of the crops based on multiple spectral bands." },
-        yieldPrediction: { value: 85, trend: -8, tooltip: "Estimated yield as a percentage of the optimal potential yield, based on current health and historical data." },
-        areaScanned: { value: 12.5, trend: 0, tooltip: "Total area in hectares covered during this autonomous drone scan." },
+// Simplified data structure with more realistic agave field shapes
+const fieldZones = [
+    {
+        id: 'norte-superior',
+        name: "Lote Norte A",
+        color: "#658c2d", // Healthy
+        bounds: [
+            [32.5365, -116.9278],
+            [32.5368, -116.9260],
+            [32.5362, -116.9258],
+            [32.5359, -116.9272],
+            [32.5361, -116.9276]
+        ],
+        metrics: {
+            salud: { label: "Salud General", value: 95, status: "Excelente", color: "text-green-400" },
+            nutrientes: { label: "Nivel de Nutrientes", value: 90, status: "Alto", color: "text-green-400" },
+            humedad: { label: "Humedad del Suelo", value: 80, status: "Óptima", color: "text-green-400" },
+            plagas: { label: "Riesgo de Plagas", value: 2, status: "Inexistente", color: "text-green-400" }
+        },
+        summary: "El Lote Norte A presenta el mejor desarrollo foliar de la temporada. Los niveles de nitrógeno son ideales."
     },
-    spectralAnalysis: [
-        { id: 'ndvi', label: "Vegetation Index (NDVI)", value: 0.68, optimalRange: [0.65, 0.85] },
-        { id: 'ndre', label: "Nutrient Stress (NDRE)", value: 0.55, optimalRange: [0.6, 0.7] },
-        { id: 'water', label: "Water Stress Index", value: 82, optimalRange: [0, 60], invert: true },
-        { id: 'pests', label: "Pest/Disease Risk", value: 45, optimalRange: [0, 30], invert: true }, 
-    ],
-    historicalData: {
-        labels: ["Sep 20", "Sep 25", "Sep 30", "Oct 2", "Oct 4"],
-        tooltip: "Tracks key health metrics over the last five scans to identify patterns and changes over time.",
-        datasets: [
-            {
-                label: "NDVI",
-                data: [0.72, 0.71, 0.70, 0.69, 0.68],
-                color: "#658c2d",
-            },
-            {
-                label: "Water Stress %",
-                data: [45, 55, 60, 75, 82],
-                color: "#f59e0b",
-            }
-        ]
+    {
+        id: 'norte-inferior',
+        name: "Lote Norte B",
+        color: "#658c2d", // Healthy
+        bounds: [
+            [32.5359, -116.9272],
+            [32.5362, -116.9258],
+            [32.5355, -116.9255],
+            [32.5352, -116.9268]
+        ],
+        metrics: {
+            salud: { label: "Salud General", value: 88, status: "Muy Buena", color: "text-green-400" },
+            nutrientes: { label: "Nivel de Nutrientes", value: 82, status: "Bueno", color: "text-green-400" },
+            humedad: { label: "Humedad del Suelo", value: 70, status: "Adecuada", color: "text-green-400" },
+            plagas: { label: "Riesgo de Plagas", value: 8, status: "Bajo", color: "text-green-400" }
+        },
+        summary: "Desarrollo constante. Se recomienda mantener el ciclo de riego actual sin cambios."
     },
-    recommendations: [
-        { id: 1, priority: 'High', text: "Adjust irrigation schedule for the northwest quadrant immediately.", icon: Droplets },
-        { id: 2, priority: 'Medium', text: "Conduct soil sample analysis in Zone B for potential nitrogen deficiency.", icon: FlaskConical },
-        { id: 3, priority: 'Low', text: "Schedule follow-up drone scan in 7 days to monitor vegetation response.", icon: Leaf },
-    ]
+    {
+        id: 'centro',
+        name: "Sección Central",
+        color: "#f59e0b", // Warning
+        bounds: [
+            [32.5352, -116.9268],
+            [32.5355, -116.9255],
+            [32.5348, -116.9252],
+            [32.5344, -116.9260],
+            [32.5346, -116.9266]
+        ],
+        metrics: {
+            salud: { label: "Salud General", value: 65, status: "Regular", color: "text-yellow-400" },
+            nutrientes: { label: "Nivel de Nutrientes", value: 50, status: "Moderado", color: "text-yellow-400" },
+            humedad: { label: "Humedad del Suelo", value: 38, status: "Baja", color: "text-yellow-400" },
+            plagas: { label: "Riesgo de Plagas", value: 30, status: "Moderado", color: "text-yellow-400" }
+        },
+        summary: "Se detecta estrés hídrico moderado en el centro del lote. Posible obstrucción en goteo."
+    },
+    {
+        id: 'sur-este',
+        name: "Lote Sur Este",
+        color: "#ef4444", // Critical
+        bounds: [
+            [32.5348, -116.9252],
+            [32.5350, -116.9242],
+            [32.5342, -116.9238],
+            [32.5338, -116.9248]
+        ],
+        metrics: {
+            salud: { label: "Salud General", value: 42, status: "Crítica", color: "text-red-400" },
+            nutrientes: { label: "Nivel de Nutrientes", value: 28, status: "Deficiente", color: "text-red-400" },
+            humedad: { label: "Humedad del Suelo", value: 12, status: "Muy Baja", color: "text-red-400" },
+            plagas: { label: "Riesgo de Plagas", value: 65, status: "Alto", color: "text-red-400" }
+        },
+        summary: "Urgencia detectada: Zona con alta evaporación y baja retención. Requiere fertilización foliar inmediata."
+    },
+    {
+        id: 'sur-oeste',
+        name: "Lote Sur Oeste",
+        color: "#f59e0b", // Warning
+        bounds: [
+            [32.5346, -116.9266],
+            [32.5344, -116.9260],
+            [32.5338, -116.9248],
+            [32.5334, -116.9255],
+            [32.5336, -116.9268]
+        ],
+        metrics: {
+            salud: { label: "Salud General", value: 72, status: "Bueno", color: "text-yellow-400" },
+            nutrientes: { label: "Nivel de Nutrientes", value: 65, status: "Estable", color: "text-yellow-400" },
+            humedad: { label: "Humedad del Suelo", value: 55, status: "Regular", color: "text-yellow-400" },
+            plagas: { label: "Riesgo de Plagas", value: 15, status: "Controlado", color: "text-yellow-400" }
+        },
+        summary: "Zona en recuperación tras el último tratamiento. Mantener vigilancia sobre humedad relativa."
+    }
+];
+
+const RecenterMap = ({ bounds }) => {
+    const map = useMap();
+    useEffect(() => {
+        if (bounds) {
+            map.fitBounds(bounds, { padding: [20, 20] });
+        }
+    }, [map, bounds]);
+    return null;
 };
 
-const Tooltip = ({ text, children }) => (
-    <div className="relative group">
-        {children}
-        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-max max-w-xs bg-gray-700 text-white text-xs rounded-lg py-1.5 px-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-10 shadow-lg border border-gray-700">
-            {text}
+const MetricCard = ({ label, value, status, color }) => (
+    <div className="bg-gray-800/40 p-4 rounded-xl border border-gray-700/30">
+        <p className="text-sm text-gray-400 mb-1">{label}</p>
+        <div className="flex justify-between items-end">
+            <div className="text-2xl font-bold text-white">{value}%</div>
+            <div className={`text-sm font-semibold ${color}`}>{status}</div>
+        </div>
+        <div className="w-full bg-gray-700 h-1.5 rounded-full mt-3 overflow-hidden">
+            <div 
+                className={`h-full rounded-full transition-all duration-500 ${color.replace('text-', 'bg-')}`} 
+                style={{ width: `${value}%` }}
+            />
         </div>
     </div>
 );
 
-const KpiCard = ({ label, value, unit, trend, tooltip }) => (
-    <Tooltip text={tooltip}>
-        <div className="bg-gray-800/20 p-4 rounded-xl">
-            <p className="text-sm text-gray-400">{label}</p>
-            <div className="flex items-baseline space-x-2 mt-1">
-                <p className="text-3xl font-bold text-white">{value}<span className="text-xl font-medium">{unit}</span></p>
-                {trend !== 0 && (
-                    <div className={`flex items-center text-sm font-semibold ${trend > 0 ? 'text-green-400' : 'text-red-400'}`}>
-                        {trend > 0 ? <ArrowUp size={16} /> : <ArrowDown size={16} />}
-                        <span>{Math.abs(trend)}%</span>
-                    </div>
-                )}
-            </div>
-        </div>
-    </Tooltip>
-);
+export default function AIAnalyticsDashboard() {
+    const [selectedZone, setSelectedZone] = useState(null);
 
-const RadialGauge = ({ label, value, optimalRange, invert = false }) => {
-    const min = optimalRange[0];
-    const max = optimalRange[1];
-    
-    let percentage = Math.max(0, Math.min(100, ((value - min) / (max - min)) * 100));
-    
-    let displayPercentage = invert ? 100 - percentage : percentage;
+    const allBounds = useMemo(() => {
+        const points = fieldZones.flatMap(z => z.bounds);
+        return L.latLngBounds(points);
+    }, []);
 
-    const getStatus = () => {
-        if (invert) {
-            if (value > max) return { text: "High Risk", color: "#ef4444" };
-            if (value > min + (max - min) * 0.7) return { text: "Warning", color: "#f59e0b" };
-            return { text: "Low Risk", color: "#658c2d" };
-        } else { 
-            if (value < min) return { text: "Stressed", color: "#ef4444" };
-            if (value < min + (max - min) * 0.3) return { text: "Moderate", color: "#f59e0b" };
-            return { text: "Healthy", color: "#658c2d" };
-        }
+    const dataToShow = selectedZone || {
+        name: "Resumen General del Campo",
+        metrics: {
+            salud: { label: "Salud General Promedio", value: 68, status: "Estable", color: "text-yellow-400" },
+            nutrientes: { label: "Nutrientes Promedio", value: 57, status: "Moderado", color: "text-yellow-400" },
+            humedad: { label: "Humedad Promedio", value: 44, status: "Baja", color: "text-yellow-400" },
+            plagas: { label: "Riesgo de Plagas", value: 30, status: "Moderado", color: "text-yellow-400" }
+        },
+        summary: "El campo presenta variaciones significativas. Los lotes del Sur requieren atención prioritaria en riego. Haz clic en una zona para ver el diagnóstico específico de cada sector."
     };
 
-    const status = getStatus();
-    const circumference = 2 * Math.PI * 54; // r=54
-    const offset = circumference - (displayPercentage / 100) * circumference;
+    const recommendations = useMemo(() => {
+        if (selectedZone) {
+            if (selectedZone.id.includes('norte')) {
+                return [
+                    { 
+                        title: "Mantenimiento Preventivo",
+                        text: `Todo se ve excelente en ${selectedZone.name}. Solo mantén el riego actual.`, 
+                        priority: "Baja",
+                        why: "Las plantas están en su punto óptimo de hidratación y nutrientes.",
+                        icon: CheckCircle,
+                        color: "text-green-400"
+                    },
+                    { 
+                        title: "Planificación de Cosecha",
+                        text: `Empieza a preparar las herramientas para la cosecha selectiva.`, 
+                        priority: "Media",
+                        why: "El tamaño de las pencas indica que estarán listas en unos 15 días.",
+                        icon: Leaf,
+                        color: "text-blue-400"
+                    }
+                ];
+            } else if (selectedZone.id === 'centro') {
+                return [
+                    { 
+                        title: "Ajuste de Riego",
+                        text: `Aumenta el tiempo de goteo en 15 minutos durante la mañana.`, 
+                        priority: "Alta",
+                        why: "Hemos notado que el suelo se está secando más rápido de lo normal en el centro.",
+                        icon: Droplets,
+                        color: "text-orange-400"
+                    },
+                    { 
+                        title: "Nutrición Extra",
+                        text: `Añade un poco de potasio al sistema de fertirriego.`, 
+                        priority: "Media",
+                        why: "Ayudará a que las plantas de esta zona recuperen su color verde intenso.",
+                        icon: FlaskConical,
+                        color: "text-yellow-400"
+                    }
+                ];
+            } else {
+                return [
+                    { 
+                        title: "¡Riego Urgente!",
+                        text: `Necesitas aplicar un riego profundo de inmediato en ${selectedZone.name}.`, 
+                        priority: "Crítica",
+                        why: "Las plantas están sufriendo por falta de agua y podrían empezar a marchitarse.",
+                        icon: Droplets,
+                        color: "text-red-500"
+                    },
+                    { 
+                        title: "Protección de Cultivo",
+                        text: `Aplica el tratamiento contra hongos antes de que caiga el sol.`, 
+                        priority: "Alta",
+                        why: "La humedad nocturna combinada con el calor actual favorece las plagas en esta zona baja.",
+                        icon: AlertTriangle,
+                        color: "text-orange-400"
+                    }
+                ];
+            }
+        }
+        return [
+            { 
+                title: "Optimización de Agua",
+                text: "Prioriza el riego en los sectores del Sur hoy por la tarde.", 
+                priority: "Media",
+                why: "Es la zona que más rápido está perdiendo humedad por el sol.",
+                icon: Droplets,
+                color: "text-orange-400"
+            },
+            { 
+                title: "Refuerzo Nutricional",
+                text: "Aplica fertilizante en el área central mañana temprano.", 
+                priority: "Media",
+                why: "Las plantas del centro necesitan un empujón para igualar el crecimiento del norte.",
+                icon: FlaskConical,
+                color: "text-yellow-400"
+            }
+        ];
+    }, [selectedZone]);
 
     return (
-        <div className="bg-gray-800/20 p-4 rounded-xl flex flex-col items-center text-center h-full">
-            <div className="relative w-32 h-32">
-                <svg className="w-full h-full transform -rotate-90" viewBox="0 0 128 128">
-                    <circle className="stroke-gray-700" cx="64" cy="64" r="54" strokeWidth="12" fill="transparent" />
-                    <circle
-                        style={{ stroke: status.color }}
-                        className="transition-all duration-500"
-                        cx="64" cy="64" r="54" strokeWidth="12" fill="transparent"
-                        strokeDasharray={circumference} strokeDashoffset={offset} strokeLinecap="round"
-                    />
-                </svg>
-                <div className="absolute inset-0 flex flex-col items-center justify-center">
-                    <span className="text-2xl font-bold text-white">{value.toFixed(2)}</span>
-                    <span className="text-xs font-semibold" style={{ color: status.color }}>{status.text}</span>
-                </div>
-            </div>
-            <p className="mt-3 text-sm text-gray-300 font-medium flex-grow flex items-center">{label}</p>
-        </div>
-    );
-};
-
-const TrendChart = ({ title, data, labels, color }) => {
-    const maxValue = Math.max(...data.data);
-    const minValue = Math.min(...data.data);
-    const range = maxValue - minValue === 0 ? 1 : maxValue - minValue;
-
-    const points = data.data.map((val, i) => {
-        const x = (i / (data.data.length - 1)) * 100;
-        const y = 100 - ((val - minValue) / range) * 80 - 10; 
-        return `${x},${y}`;
-    }).join(' ');
-
-    return (
-        <div className="bg-gray-800/20 p-4 rounded-xl">
-            <p className="text-sm font-medium text-gray-300 mb-2">{title}</p>
-            <div className="h-40 relative">
-                <svg width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none">
-                    {[0, 25, 50, 75, 100].map(y => <line key={y} x1="0" y1={y} x2="100" y2={y} stroke="#4b5563" strokeWidth="0.5" />)}
-                    <polyline fill="none" stroke={color} strokeWidth="2" points={points} />
-                </svg>
-            </div>
-            <div className="flex justify-between text-xs text-gray-400 mt-1">
-                {labels.map(label => <span key={label}>{label}</span>)}
-            </div>
-        </div>
-    );
-};
-
-export default function AIAnalyticsDashboard() {
-    const { scanDate, executiveSummary, alerts, kpis, spectralAnalysis, historicalData, recommendations } = mockAnalysisData;
-
-    return (
-        <div className="p-8 bg-zinc-900 rounded-xl w-full space-y-8">
+        <div className="p-4 lg:p-8 bg-zinc-950 min-h-full w-full space-y-6 lg:space-y-8 font-sans text-zinc-100">
             
-            <header className="border-b border-gray-700/30 pb-4">
-                <h1 className="text-2xl font-bold text-white">AI-Powered Environmental Analysis</h1>
-                <p className="text-sm text-gray-400">Scan completed: {new Date(scanDate).toLocaleString('es-MX', { timeZone: 'America/Mexico_City' })}</p>
+            <header className="flex flex-col md:flex-row md:items-center justify-between border-b border-zinc-800 pb-6 gap-4">
+                <div>
+                    <h1 className="text-2xl lg:text-3xl font-bold text-white flex items-center gap-2">
+                        <MapIcon className="text-[#658c2d] w-8 h-8" />
+                        Monitoreo Inteligente de Cultivos
+                    </h1>
+                    <p className="text-zinc-400 text-sm mt-1">
+                        Estado visual y análisis predictivo por sectores.
+                    </p>
+                </div>
+                <div className="bg-zinc-900 px-4 py-2 rounded-xl border border-zinc-800">
+                    <span className="text-[10px] text-zinc-500 uppercase font-black tracking-widest">Sincronización IA</span>
+                    <p className="text-sm font-medium text-zinc-200">Hoy, 05:55 AM</p>
+                </div>
             </header>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                <div className="lg:col-span-2 space-y-8">
-                    <section>
-                        <h2 className="text-lg font-semibold mb-3 flex items-center"><Leaf size={20} className="mr-2 text-[#658c2d]"/>Executive Summary</h2>
-                        <div className="bg-gray-800/20 p-4 rounded-xl text-gray-300">
-                            <p>{executiveSummary}</p>
-                        </div>
-                    </section>
-                    
-                    {alerts.length > 0 && (
-                        <section>
-                            <h2 className="text-lg font-semibold mb-3 flex items-center"><AlertTriangle size={20} className="mr-2 text-yellow-400"/>Critical Alerts</h2>
-                            <div className="space-y-3">
-                                {alerts.map(alert => (
-                                    <div key={alert.id} className="bg-yellow-900/40 border border-yellow-400/50 p-4 rounded-xl">
-                                        <p className="font-semibold text-yellow-300">{alert.title}</p>
-                                        <p className="text-sm text-yellow-300/80 mt-1">{alert.details}</p>
+            <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 lg:gap-8">
+                
+                {/* MAP SECTION */}
+                <div className="xl:col-span-7 bg-zinc-900 rounded-3xl overflow-hidden border border-zinc-800 shadow-2xl h-[450px] lg:h-[550px] relative group">
+                    <MapContainer
+                        center={[32.535404, -116.926896]}
+                        zoom={17}
+                        scrollWheelZoom={false}
+                        style={{ height: '100%', width: '100%' }}
+                        zoomControl={false}
+                    >
+                        <TileLayer
+                            attribution='&copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
+                            url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+                        />
+                        <TileLayer
+                            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                            opacity={0.3}
+                        />
+                        {fieldZones.map(zone => (
+                            <Polygon
+                                key={zone.id}
+                                positions={zone.bounds}
+                                pathOptions={{
+                                    fillColor: zone.color,
+                                    fillOpacity: selectedZone?.id === zone.id ? 0.6 : 0.35,
+                                    color: 'white',
+                                    weight: selectedZone?.id === zone.id ? 3 : 1.5,
+                                }}
+                                eventHandlers={{
+                                    click: () => setSelectedZone(zone)
+                                }}
+                            >
+                                <LeafletTooltip permanent direction="center" className="custom-zone-label">
+                                    <div className="flex flex-col items-center">
+                                        <span className="name">{zone.name}</span>
+                                        <span className="val">{zone.metrics.salud.value}%</span>
                                     </div>
-                                ))}
+                                </LeafletTooltip>
+                            </Polygon>
+                        ))}
+                        <RecenterMap bounds={allBounds} />
+                    </MapContainer>
+                    
+                    <div className="absolute top-6 right-6 bg-zinc-900/80 backdrop-blur-xl p-4 rounded-2xl border border-zinc-700/50 z-[1000] text-xs space-y-3 shadow-2xl">
+                        <div className="flex items-center gap-3">
+                            <div className="w-3 h-3 rounded-full bg-[#658c2d] shadow-[0_0_8px_rgba(101,140,45,0.6)]"></div>
+                            <span className="text-zinc-300 font-medium">Saludable</span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                            <div className="w-3 h-3 rounded-full bg-[#f59e0b] shadow-[0_0_8px_rgba(245,158,11,0.6)]"></div>
+                            <span className="text-zinc-300 font-medium">Atención</span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                            <div className="w-3 h-3 rounded-full bg-[#ef4444] shadow-[0_0_8px_rgba(239,68,68,0.6)]"></div>
+                            <span className="text-zinc-300 font-medium">Urgente</span>
+                        </div>
+                    </div>
+                    
+                    {!selectedZone && (
+                        <div className="absolute inset-x-0 bottom-10 flex justify-center z-[1000] pointer-events-none">
+                            <div className="bg-white/10 backdrop-blur-md text-white border border-white/20 px-6 py-3 rounded-2xl text-sm font-semibold shadow-2xl animate-pulse">
+                                Toca un sector para analizar
                             </div>
-                        </section>
+                        </div>
                     )}
-
-                    <section>
-                        <Tooltip text={historicalData.tooltip}>
-                            <h2 className="text-lg font-semibold mb-3 flex items-center"><BarChart2 size={20} className="mr-2 text-[#658c2d]"/>Historical Trends</h2>
-                        </Tooltip>
-                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            {historicalData.datasets.map(dataset => (
-                                <TrendChart key={dataset.label} title={dataset.label} data={dataset} labels={historicalData.labels} color={dataset.color} />
-                            ))}
-                         </div>
-                    </section>
                 </div>
 
-                <div className="space-y-8">
-                    <section>
-                        <h2 className="text-lg font-semibold mb-3">Key Metrics</h2>
-                        <div className="space-y-4">
-                           <KpiCard label="Overall Crop Health" value={kpis.overallHealth.value} unit="%" trend={kpis.overallHealth.trend} tooltip={kpis.overallHealth.tooltip} />
-                           <KpiCard label="Predicted Yield" value={kpis.yieldPrediction.value} unit="%" trend={kpis.yieldPrediction.trend} tooltip={kpis.yieldPrediction.tooltip} />
-                           <KpiCard label="Area Scanned" value={kpis.areaScanned.value} unit=" ha" trend={kpis.areaScanned.trend} tooltip={kpis.areaScanned.tooltip} />
+                {/* DATA SECTION */}
+                <div className="xl:col-span-5 flex flex-col gap-6">
+                    <div className="bg-zinc-900/60 backdrop-blur-sm p-6 lg:p-8 rounded-3xl border border-zinc-800 space-y-8 shadow-xl">
+                        <div className="flex items-start justify-between gap-4">
+                            <div>
+                                <h2 className="text-2xl font-black text-white tracking-tight">{dataToShow.name}</h2>
+                                {selectedZone && <p className="text-xs text-[#658c2d] font-bold mt-1 uppercase tracking-widest">Diagnóstico por Zona</p>}
+                            </div>
+                            {selectedZone && (
+                                <button 
+                                    onClick={() => setSelectedZone(null)}
+                                    className="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-[10px] text-zinc-300 font-bold rounded-lg border border-zinc-700 transition-all uppercase tracking-tighter"
+                                >
+                                    Restablecer
+                                </button>
+                            )}
                         </div>
-                    </section>
-                    
-                    <section>
-                        <h2 className="text-lg font-semibold mb-3 flex items-center"><CheckCircle size={20} className="mr-2 text-[#658c2d]"/>Recommendations</h2>
-                        <div className="space-y-3">
-                            {recommendations.map(rec => {
-                                const priorityColor = rec.priority === 'High' ? 'text-red-400' : rec.priority === 'Medium' ? 'text-yellow-400' : 'text-green-400';
-                                return (
-                                    <div key={rec.id} className="bg-gray-800/20 p-3 rounded-xl flex items-start space-x-3">
-                                        <div className={`flex-shrink-0 mt-1 ${priorityColor}`}><rec.icon size={18}/></div>
-                                        <p className="text-sm text-gray-300">{rec.text}</p>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                            <MetricCard {...dataToShow.metrics.salud} />
+                            <MetricCard {...dataToShow.metrics.nutrientes} />
+                            <MetricCard {...dataToShow.metrics.humedad} />
+                            <MetricCard {...dataToShow.metrics.plagas} />
+                        </div>
+
+                        <div className="bg-zinc-800/30 p-5 rounded-2xl border border-zinc-700/30 flex gap-4 items-start relative overflow-hidden">
+                            <div className="absolute top-0 left-0 w-1 h-full bg-[#658c2d]/40"></div>
+                            <div className={`mt-1 flex-shrink-0 ${selectedZone ? (dataToShow.metrics.salud.color) : 'text-blue-400'}`}>
+                                <Info size={22} strokeWidth={2.5} />
+                            </div>
+                            <div>
+                                <h4 className="text-xs font-black text-zinc-500 uppercase tracking-widest mb-1.5">Análisis de Precisión IA</h4>
+                                <p className="text-sm text-zinc-300 leading-relaxed font-medium">
+                                    {dataToShow.summary}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="bg-zinc-900/60 p-6 lg:p-8 rounded-3xl border border-zinc-800 shadow-xl overflow-hidden relative">
+                        <div className="absolute top-0 right-0 p-8 opacity-10 pointer-events-none">
+                            <CheckCircle size={120} />
+                        </div>
+                        <h3 className="text-sm font-black text-[#658c2d] uppercase tracking-[0.2em] flex items-center gap-2 mb-6">
+                            <CheckCircle size={18} strokeWidth={3} />
+                            Guía de Acciones de Hoy
+                        </h3>
+                        <div className="space-y-6">
+                            {recommendations.map((rec, i) => (
+                                <div key={i} className="bg-zinc-800/40 p-5 rounded-2xl border border-zinc-700/30 hover:border-[#658c2d]/50 transition-all group">
+                                    <div className="flex gap-4 items-start">
+                                        <div className={`flex-shrink-0 p-3 rounded-xl ${rec.color.replace('text-', 'bg-')}/20 ${rec.color}`}>
+                                            <rec.icon size={22} strokeWidth={2.5} />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <div className="flex items-center gap-2">
+                                                <h4 className="text-sm font-black text-white uppercase tracking-tight">{rec.title}</h4>
+                                                <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase ${
+                                                    rec.priority === 'Crítica' ? 'bg-red-500 text-white' : 
+                                                    rec.priority === 'Alta' ? 'bg-orange-500 text-white' : 
+                                                    'bg-zinc-700 text-zinc-300'
+                                                }`}>
+                                                    {rec.priority}
+                                                </span>
+                                            </div>
+                                            <p className="text-sm font-bold text-zinc-200">{rec.text}</p>
+                                            <p className="text-xs text-zinc-400 leading-relaxed italic mt-2 flex gap-1 items-start">
+                                                <Info size={14} className="flex-shrink-0 mt-0.5 opacity-60" />
+                                                <span><strong>¿Por qué?:</strong> {rec.why}</span>
+                                            </p>
+                                        </div>
                                     </div>
-                                );
-                            })}
+                                </div>
+                            ))}
                         </div>
-                    </section>
+                    </div>
                 </div>
             </div>
-
-            <section>
-                <h2 className="text-lg font-semibold mb-4">Detailed Spectral Analysis</h2>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-                    {spectralAnalysis.map(metric => (
-                        <RadialGauge key={metric.id} label={metric.label} value={metric.value} optimalRange={metric.optimalRange} invert={metric.invert} />
-                    ))}
-                </div>
-            </section>
         </div>
     );
 }
-
